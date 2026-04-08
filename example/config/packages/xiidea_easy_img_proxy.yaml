@@ -1,0 +1,57 @@
+xiidea_easy_img_proxy:
+  # Hex-encoded 32-byte key for HMAC-SHA256 signing
+  key: '%env(IMGPROXY_KEY)%'
+
+  # Hex-encoded 16-byte salt for signature generation
+  salt: '%env(IMGPROXY_SALT)%'
+
+  # Base URL of the imgproxy service (without trailing slash)
+  base_url: '%env(IMGPROXY_BASE_URL)%'
+
+  # Define reusable custom presets
+  presets:
+    # Thumbnail preset - small square image
+    thumbnail:
+      options:
+        width: 200
+        height: 200
+        resizing_type: fill
+        gravity: center
+        quality: 85
+      extension: webp
+
+    # Hero image preset - wide banner
+    hero:
+      options:
+        width: 1200
+        height: 400
+        resizing_type: fill
+        quality: 90
+      extension: jpg
+
+    # Avatar preset - small circular image
+    avatar:
+      options:
+        width: 48
+        height: 48
+        resizing_type: fill
+        gravity: center
+        quality: 80
+      extension: webp
+
+    # Product image preset - medium with high quality
+    product:
+      options:
+        width: 600
+        height: 600
+        resizing_type: fit
+        quality: 90
+      extension: webp
+
+    # Mobile optimized preset
+    mobile:
+      options:
+        width: 400
+        quality: 75
+        dpr: 2
+      extension: webp

@@ -1,0 +1,32 @@
+{
+    "name": "xiidea/easy-imgproxy-bundle",
+    "description": "Symfony Bundle for generating secure, signed URLs for imgproxy service",
+    "type": "symfony-bundle",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Roni Kumar Saha",
+            "email": "roni.cse@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^8.1",
+        "symfony/config": "^6.0|^7.0",
+        "symfony/dependency-injection": "^6.0|^7.0",
+        "symfony/http-kernel": "^6.0|^7.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0|^11.0",
+        "symfony/framework-bundle": "^6.0|^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Xiidea\\EasyImgProxyBundle\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Xiidea\\EasyImgProxyBundle\\Tests\\": "tests/"
+        }
+    }
+}

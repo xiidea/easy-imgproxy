@@ -1,0 +1,11 @@
+/vendor/
+/composer.lock
+.DS_Store
+.idea/
+.vscode/
+*.iml
+.claude/
+PRESETS.md
+PRESET_IMPLEMENTATION.md
+STRUCTURE.md
+.phpunit.result.cache
