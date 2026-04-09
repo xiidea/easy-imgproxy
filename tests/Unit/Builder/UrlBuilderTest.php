@@ -435,4 +435,230 @@ class UrlBuilderTest extends TestCase
         $this->assertStringContainsString('/preset/blurry/', $url1);
         $this->assertStringNotContainsString('/preset/blurry/', $url2);
     }
+
+    // =========================================================================
+    // Presets-only mode tests
+    // =========================================================================
+
+    public function testPresetsOnlyGeneratesColonSeparatedUrl(): void
+    {
+        $builder = new UrlBuilder($this->key, $this->salt, $this->baseUrl, null, true);
+
+        $url = $builder
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPreset('blurry')
+            ->build();
+
+        // In presets-only mode: /{sig}/{preset}/{url} — no /preset/ prefix
+        $this->assertStringNotContainsString('/preset/', $url);
+        $this->assertStringContainsString('/blurry/', $url);
+    }
+
+    public function testPresetsOnlyMultiplePresetsJoinedByColon(): void
+    {
+        $builder = new UrlBuilder($this->key, $this->salt, $this->baseUrl, null, true);
+
+        $url = $builder
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPresets(['blurry', 'thumb', 'quality_high'])
+            ->build();
+
+        $this->assertStringContainsString('/blurry:thumb:quality_high/', $url);
+    }
+
+    public function testPresetsOnlyRejectsProcessingOptions(): void
+    {
+        $builder = new UrlBuilder($this->key, $this->salt, $this->baseUrl, null, true);
+
+        $this->expectException(InvalidUrlBuilderException::class);
+        $this->expectExceptionMessage('Processing options are not allowed in presets-only mode.');
+
+        $builder
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPreset('blurry')
+            ->withWidth(200)
+            ->build();
+    }
+
+    public function testPresetsOnlyRejectsExtension(): void
+    {
+        $builder = new UrlBuilder($this->key, $this->salt, $this->baseUrl, null, true);
+
+        $this->expectException(InvalidUrlBuilderException::class);
+        $this->expectExceptionMessage('Extension is not allowed in presets-only mode.');
+
+        $builder
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPreset('blurry')
+            ->withExtension('webp')
+            ->build();
+    }
+
+    public function testPresetsOnlyRejectsCustomPresets(): void
+    {
+        $registry = new PresetRegistry();
+        $registry->register('thumbnail', new Preset(['width' => 200], 'webp'));
+
+        $builder = new UrlBuilder($this->key, $this->salt, $this->baseUrl, $registry, true);
+
+        $this->expectException(InvalidUrlBuilderException::class);
+        $this->expectExceptionMessage('Custom presets with options are not allowed in presets-only mode.');
+
+        $builder
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPreset('blurry')
+            ->withPreset('thumbnail')
+            ->build();
+    }
+
+    public function testPresetsOnlyRequiresAtLeastOneServerPreset(): void
+    {
+        $builder = new UrlBuilder($this->key, $this->salt, $this->baseUrl, null, true);
+
+        $this->expectException(InvalidUrlBuilderException::class);
+        $this->expectExceptionMessage('At least one server preset is required in presets-only mode.');
+
+        $builder
+            ->withImageUrl('https://example.com/image.jpg')
+            ->build();
+    }
+
+    public function testPresetsOnlyConsistentSignature(): void
+    {
+        $builder = new UrlBuilder($this->key, $this->salt, $this->baseUrl, null, true);
+
+        $url1 = $builder
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPresets(['blurry', 'thumb'])
+            ->build();
+
+        $builder->reset();
+
+        $url2 = $builder
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPresets(['blurry', 'thumb'])
+            ->build();
+
+        $this->assertSame($url1, $url2);
+    }
+
+    public function testPresetsOnlyDifferentPresetOrderProducesDifferentUrl(): void
+    {
+        $builder = new UrlBuilder($this->key, $this->salt, $this->baseUrl, null, true);
+
+        $url1 = $builder
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPresets(['blurry', 'thumb'])
+            ->build();
+
+        $builder->reset();
+
+        $url2 = $builder
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPresets(['thumb', 'blurry'])
+            ->build();
+
+        $this->assertNotSame($url1, $url2);
+        $this->assertStringContainsString('/blurry:thumb/', $url1);
+        $this->assertStringContainsString('/thumb:blurry/', $url2);
+    }
+
+    public function testUsePresetsOnlyTogglesMode(): void
+    {
+        $builder = new UrlBuilder($this->key, $this->salt, $this->baseUrl);
+
+        // Standard mode by default
+        $url1 = $builder
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPreset('blurry')
+            ->build();
+
+        $this->assertStringContainsString('/preset/blurry/', $url1);
+
+        // Switch to presets-only mode via code
+        $builder->reset();
+        $url2 = $builder
+            ->usePresetsOnly()
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPreset('blurry')
+            ->build();
+
+        $this->assertStringNotContainsString('/preset/', $url2);
+        $this->assertStringContainsString('/blurry/', $url2);
+    }
+
+    public function testUsePresetsOnlyCanBeDisabled(): void
+    {
+        // Start in presets-only mode
+        $builder = new UrlBuilder($this->key, $this->salt, $this->baseUrl, null, true);
+
+        // Disable via code
+        $builder->usePresetsOnly(false);
+
+        $url = $builder
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPreset('blurry')
+            ->withWidth(200)
+            ->build();
+
+        // Should work in standard mode now
+        $this->assertStringContainsString('/preset/blurry/', $url);
+        $this->assertStringContainsString('/width/200/', $url);
+    }
+
+    public function testPresetsOnlyModePreservedAfterReset(): void
+    {
+        $builder = new UrlBuilder($this->key, $this->salt, $this->baseUrl, null, true);
+
+        $builder
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPreset('blurry')
+            ->build();
+
+        $builder->reset();
+
+        // Mode should still be presets-only after reset
+        $this->expectException(InvalidUrlBuilderException::class);
+        $this->expectExceptionMessage('At least one server preset is required in presets-only mode.');
+
+        $builder
+            ->withImageUrl('https://example.com/image.jpg')
+            ->build();
+    }
+
+    public function testPresetsOnlyUrlStructure(): void
+    {
+        $builder = new UrlBuilder($this->key, $this->salt, $this->baseUrl, null, true);
+
+        $imageUrl = 'https://example.com/image.jpg';
+        $url = $builder
+            ->withImageUrl($imageUrl)
+            ->withServerPresets(['blur', 'sharp'])
+            ->build();
+
+        // Structure: {base}/{signature}/{preset1:preset2}/{encoded_url}
+        $withoutBase = str_replace($this->baseUrl . '/', '', $url);
+        $parts = explode('/', $withoutBase, 3);
+
+        // parts[0] = signature, parts[1] = colon-separated presets, parts[2] = encoded URL
+        $this->assertCount(3, $parts);
+        $this->assertSame('blur:sharp', $parts[1]);
+        $this->assertSame(rawurlencode($imageUrl), $parts[2]);
+    }
+
+    public function testPresetsOnlySignatureIsUrlSafe(): void
+    {
+        $builder = new UrlBuilder($this->key, $this->salt, $this->baseUrl, null, true);
+
+        $url = $builder
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPreset('blurry')
+            ->build();
+
+        $withoutBase = str_replace($this->baseUrl . '/', '', $url);
+        $signature = explode('/', $withoutBase)[0];
+
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9\-_]+$/', $signature);
+        $this->assertStringNotContainsString('=', $signature);
+    }
 }

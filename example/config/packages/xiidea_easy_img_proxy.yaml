@@ -8,6 +8,10 @@ xiidea_easy_img_proxy:
   # Base URL of the imgproxy service (without trailing slash)
   base_url: '%env(IMGPROXY_BASE_URL)%'
 
+  # Set to true when imgproxy server has IMGPROXY_ONLY_PRESETS=true
+  # Changes URL format to /{signature}/{preset1:preset2}/{image_url}
+  presets_only: false
+
   # Define reusable custom presets
   presets:
     # Thumbnail preset - small square image

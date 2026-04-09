@@ -14,6 +14,7 @@ class ImgProxyUrlGenerator
         private string $salt,
         private string $baseUrl,
         private ?PresetRegistry $presetRegistry = null,
+        private bool $presetsOnly = false,
     ) {
     }
 
@@ -22,7 +23,13 @@ class ImgProxyUrlGenerator
      */
     public function builder(): UrlBuilder
     {
-        return new UrlBuilder($this->key, $this->salt, $this->baseUrl, $this->presetRegistry);
+        return new UrlBuilder(
+            $this->key,
+            $this->salt,
+            $this->baseUrl,
+            $this->presetRegistry,
+            $this->presetsOnly,
+        );
     }
 
     /**

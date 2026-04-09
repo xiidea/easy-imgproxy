@@ -217,4 +217,55 @@ class ImgProxyUrlGeneratorTest extends TestCase
         $this->assertStringContainsString('/format/webp/', $url);
         $this->assertStringNotContainsString('/format/jpg/', $url);
     }
+
+    public function testGeneratorPresetsOnlyViaConfig(): void
+    {
+        $key = bin2hex(random_bytes(32));
+        $salt = bin2hex(random_bytes(16));
+        $baseUrl = 'http://localhost:8080';
+
+        $generator = new ImgProxyUrlGenerator($key, $salt, $baseUrl, null, true);
+
+        $url = $generator->builder()
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPresets(['blur', 'thumb'])
+            ->build();
+
+        $this->assertStringContainsString('/blur:thumb/', $url);
+        $this->assertStringNotContainsString('/preset/', $url);
+    }
+
+    public function testGeneratorPresetsOnlyOverriddenByCode(): void
+    {
+        $key = bin2hex(random_bytes(32));
+        $salt = bin2hex(random_bytes(16));
+        $baseUrl = 'http://localhost:8080';
+
+        // Config says presets_only: true
+        $generator = new ImgProxyUrlGenerator($key, $salt, $baseUrl, null, true);
+
+        // But code disables it for this builder
+        $url = $generator->builder()
+            ->usePresetsOnly(false)
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPreset('blur')
+            ->withWidth(200)
+            ->build();
+
+        $this->assertStringContainsString('/preset/blur/', $url);
+        $this->assertStringContainsString('/width/200/', $url);
+    }
+
+    public function testGeneratorStandardModeCanSwitchToPresetsOnly(): void
+    {
+        // Default: presets_only false
+        $url = $this->generator->builder()
+            ->usePresetsOnly()
+            ->withImageUrl('https://example.com/image.jpg')
+            ->withServerPresets(['sharp', 'quality_high'])
+            ->build();
+
+        $this->assertStringContainsString('/sharp:quality_high/', $url);
+        $this->assertStringNotContainsString('/preset/', $url);
+    }
 }

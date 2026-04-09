@@ -33,12 +33,20 @@ class UrlBuilder
     /** @var array<string> */
     private array $serverPresets = [];
 
-    public function __construct(string $key, string $salt, string $baseUrl, ?PresetRegistry $presetRegistry = null)
-    {
+    private bool $presetsOnly;
+
+    public function __construct(
+        string $key,
+        string $salt,
+        string $baseUrl,
+        ?PresetRegistry $presetRegistry = null,
+        bool $presetsOnly = false,
+    ) {
         $this->key = $key;
         $this->salt = $salt;
         $this->baseUrl = $baseUrl;
         $this->presetRegistry = $presetRegistry;
+        $this->presetsOnly = $presetsOnly;
     }
 
     /**
@@ -194,6 +202,20 @@ class UrlBuilder
     }
 
     /**
+     * Enable or disable presets-only mode.
+     *
+     * When enabled, matches IMGPROXY_ONLY_PRESETS=true on the server.
+     * Only server presets are used and the URL format becomes:
+     * /{signature}/{preset1}:{preset2}/{encoded_image_url}
+     */
+    public function usePresetsOnly(bool $presetsOnly = true): self
+    {
+        $this->presetsOnly = $presetsOnly;
+
+        return $this;
+    }
+
+    /**
      * Build and return the complete imgproxy URL.
      *
      * @throws InvalidUrlBuilderException
@@ -214,6 +236,18 @@ class UrlBuilder
      * Build the processing options path string.
      */
     private function buildPath(): string
+    {
+        if ($this->presetsOnly) {
+            return $this->buildPresetsOnlyPath();
+        }
+
+        return $this->buildStandardPath();
+    }
+
+    /**
+     * Build path in standard mode: /preset/name/key/value/format/ext
+     */
+    private function buildStandardPath(): string
     {
         $pathParts = [];
 
@@ -243,6 +277,18 @@ class UrlBuilder
         }
 
         return '/' . implode('/', $pathParts);
+    }
+
+    /**
+     * Build path in presets-only mode: /preset1:preset2:preset3
+     */
+    private function buildPresetsOnlyPath(): string
+    {
+        if (empty($this->serverPresets)) {
+            return '';
+        }
+
+        return '/' . implode(':', $this->serverPresets);
     }
 
     /**
@@ -277,6 +323,42 @@ class UrlBuilder
 
         if (empty($this->imageUrl)) {
             throw new InvalidUrlBuilderException('Image URL cannot be empty.');
+        }
+
+        if ($this->presetsOnly) {
+            $this->validatePresetsOnly();
+        }
+    }
+
+    /**
+     * Validate constraints specific to presets-only mode.
+     *
+     * @throws InvalidUrlBuilderException
+     */
+    private function validatePresetsOnly(): void
+    {
+        if (empty($this->serverPresets)) {
+            throw new InvalidUrlBuilderException(
+                'At least one server preset is required in presets-only mode.'
+            );
+        }
+
+        if (!empty($this->processingOptions)) {
+            throw new InvalidUrlBuilderException(
+                'Processing options are not allowed in presets-only mode. Use server presets instead.'
+            );
+        }
+
+        if ($this->extension !== null) {
+            throw new InvalidUrlBuilderException(
+                'Extension is not allowed in presets-only mode. Configure the format in your server preset.'
+            );
+        }
+
+        if (!empty($this->presetOptions) || $this->presetExtension !== null) {
+            throw new InvalidUrlBuilderException(
+                'Custom presets with options are not allowed in presets-only mode. Use server presets instead.'
+            );
         }
     }
 
