@@ -42,7 +42,7 @@ class ImgProxyUrlGeneratorTest extends TestCase
 
         $this->assertIsString($url);
         $this->assertStringStartsWith('http://localhost:8080/', $url);
-        $this->assertStringContainsString('/width:200/', $url);
+        $this->assertStringContainsString('/w:200/', $url);
     }
 
     public function testGeneratorCanGenerateUrlInline(): void
@@ -52,8 +52,8 @@ class ImgProxyUrlGeneratorTest extends TestCase
             ['width' => 200, 'height' => 300],
         );
 
-        $this->assertStringContainsString('/width:200/', $url);
-        $this->assertStringContainsString('/height:300/', $url);
+        $this->assertStringContainsString('/w:200/', $url);
+        $this->assertStringContainsString('/h:300/', $url);
     }
 
     public function testGeneratorCanGenerateUrlWithExtension(): void
@@ -62,7 +62,7 @@ class ImgProxyUrlGeneratorTest extends TestCase
 
         $url = $this->generator->generate($imageUrl, ['width' => 200], 'webp');
 
-        $this->assertStringContainsString('/width:200/', $url);
+        $this->assertStringContainsString('/w:200/', $url);
         $this->assertStringEndsWith(self::base64url($imageUrl) . '.webp', $url);
     }
 
@@ -109,11 +109,11 @@ class ImgProxyUrlGeneratorTest extends TestCase
             'webp'
         );
 
-        $this->assertStringContainsString('/width:400/', $url);
-        $this->assertStringContainsString('/height:600/', $url);
-        $this->assertStringContainsString('/quality:75/', $url);
-        $this->assertStringContainsString('/gravity:center/', $url);
-        $this->assertStringContainsString('/resizing_type:fill/', $url);
+        $this->assertStringContainsString('/w:400/', $url);
+        $this->assertStringContainsString('/h:600/', $url);
+        $this->assertStringContainsString('/q:75/', $url);
+        $this->assertStringContainsString('/g:center/', $url);
+        $this->assertStringContainsString('/rt:fill/', $url);
         $this->assertStringContainsString('/dpr:2/', $url);
         $this->assertStringEndsWith('.webp', $url);
     }
@@ -125,7 +125,7 @@ class ImgProxyUrlGeneratorTest extends TestCase
             ->withServerPreset('blurry')
             ->build();
 
-        $this->assertStringContainsString('/preset:blurry/', $url);
+        $this->assertStringContainsString('/pr:blurry/', $url);
     }
 
     public function testGeneratorBuilderWithCustomPreset(): void
@@ -148,10 +148,10 @@ class ImgProxyUrlGeneratorTest extends TestCase
             ->withPreset('thumbnail')
             ->build();
 
-        $this->assertStringContainsString('/width:200/', $url);
-        $this->assertStringContainsString('/height:200/', $url);
-        $this->assertStringContainsString('/resizing_type:fill/', $url);
-        $this->assertStringContainsString('/quality:80/', $url);
+        $this->assertStringContainsString('/w:200/', $url);
+        $this->assertStringContainsString('/h:200/', $url);
+        $this->assertStringContainsString('/rt:fill/', $url);
+        $this->assertStringContainsString('/q:80/', $url);
         $this->assertStringEndsWith('.webp', $url);
     }
 
@@ -174,9 +174,9 @@ class ImgProxyUrlGeneratorTest extends TestCase
             ->withWidth(300)
             ->build();
 
-        $this->assertStringContainsString('/preset:blur/', $url);
-        $this->assertStringContainsString('/quality:85/', $url);
-        $this->assertStringContainsString('/width:300/', $url);
+        $this->assertStringContainsString('/pr:blur/', $url);
+        $this->assertStringContainsString('/q:85/', $url);
+        $this->assertStringContainsString('/w:300/', $url);
     }
 
     public function testGeneratorPresetOverrideWithExplicitOptions(): void
@@ -198,8 +198,8 @@ class ImgProxyUrlGeneratorTest extends TestCase
             ->withExtension('webp')
             ->build();
 
-        $this->assertStringContainsString('/width:400/', $url);
-        $this->assertStringContainsString('/quality:70/', $url);
+        $this->assertStringContainsString('/w:400/', $url);
+        $this->assertStringContainsString('/q:70/', $url);
         $this->assertStringEndsWith('.webp', $url);
         $this->assertStringNotContainsString('.jpg', $url);
     }
@@ -224,7 +224,7 @@ class ImgProxyUrlGeneratorTest extends TestCase
             ->build();
 
         $this->assertStringContainsString('/blur:thumb/', $url);
-        $this->assertStringNotContainsString('preset:', $url);
+        $this->assertStringNotContainsString('pr:', $url);
     }
 
     public function testGeneratorPresetsOnlyOverriddenByCode(): void
@@ -244,8 +244,8 @@ class ImgProxyUrlGeneratorTest extends TestCase
             ->withWidth(200)
             ->build();
 
-        $this->assertStringContainsString('/preset:blur/', $url);
-        $this->assertStringContainsString('/width:200/', $url);
+        $this->assertStringContainsString('/pr:blur/', $url);
+        $this->assertStringContainsString('/w:200/', $url);
     }
 
     public function testGeneratorStandardModeCanSwitchToPresetsOnly(): void
@@ -257,6 +257,6 @@ class ImgProxyUrlGeneratorTest extends TestCase
             ->build();
 
         $this->assertStringContainsString('/sharp:quality_high/', $url);
-        $this->assertStringNotContainsString('preset:', $url);
+        $this->assertStringNotContainsString('pr:', $url);
     }
 }

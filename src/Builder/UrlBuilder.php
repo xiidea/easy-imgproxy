@@ -7,6 +7,7 @@ namespace Xiidea\EasyImgProxyBundle\Builder;
 use Xiidea\EasyImgProxyBundle\Exception\InvalidUrlBuilderException;
 use Xiidea\EasyImgProxyBundle\Preset\Preset;
 use Xiidea\EasyImgProxyBundle\Preset\PresetRegistry;
+use Xiidea\EasyImgProxyBundle\Processing\ProcessingOption;
 
 class UrlBuilder
 {
@@ -29,15 +30,19 @@ class UrlBuilder
 
     private bool $presetsOnly;
 
+    private bool $enablePro;
+
     public function __construct(
         private readonly string $key,
         private readonly string $salt,
         private readonly string $baseUrl,
         ?PresetRegistry $presetRegistry = null,
         bool $presetsOnly = false,
+        bool $enablePro = false,
     ) {
         $this->presetRegistry = $presetRegistry;
         $this->presetsOnly = $presetsOnly;
+        $this->enablePro = $enablePro;
     }
 
     /**
@@ -102,8 +107,10 @@ class UrlBuilder
     }
 
     /**
-     * Add a custom processing option.
-     * Rendered as key:value in the URL path.
+     * Add a processing option.
+     *
+     * Accepts both full names (e.g., 'width') and short forms (e.g., 'w').
+     * Options are always rendered using their short form in the URL.
      */
     public function withOption(string $key, mixed $value): self
     {
@@ -206,6 +213,18 @@ class UrlBuilder
     }
 
     /**
+     * Enable or disable imgproxy Pro options.
+     *
+     * When disabled, pro options are silently dropped with a trigger_error warning.
+     */
+    public function enablePro(bool $enablePro = true): self
+    {
+        $this->enablePro = $enablePro;
+
+        return $this;
+    }
+
+    /**
      * Build and return the complete signed imgproxy URL.
      *
      * @throws InvalidUrlBuilderException
@@ -270,25 +289,38 @@ class UrlBuilder
     }
 
     /**
-     * Build path in standard mode.
+     * Build path in standard mode using short option names.
      *
-     * Server presets: /preset:name1:name2
-     * Options: /key:value
+     * Server presets: /pr:name1:name2
+     * Options: /short_key:value (e.g., /w:200/h:300)
      */
     private function buildStandardPath(): string
     {
         $segments = [];
 
-        // Server presets as a single "preset:name1:name2" segment
+        // Server presets as a single "pr:name1:name2" segment
         if (!empty($this->serverPresets)) {
-            $segments[] = 'preset:' . implode(':', $this->serverPresets);
+            $segments[] = 'pr:' . implode(':', $this->serverPresets);
         }
 
         // Merge preset options with explicit options (explicit override preset)
         $allOptions = array_merge($this->presetOptions, $this->processingOptions);
 
         foreach ($allOptions as $key => $value) {
-            $segments[] = $key . ':' . $value;
+            if (!$this->enablePro && ProcessingOption::isPro($key)) {
+                @trigger_error(
+                    sprintf(
+                        'imgproxy Pro option "%s" ignored: enable_pro is false. '
+                        . 'Set enable_pro to true in your configuration to use this option.',
+                        $key
+                    ),
+                    E_USER_WARNING
+                );
+                continue;
+            }
+
+            $shortKey = ProcessingOption::shortName($key);
+            $segments[] = $shortKey . ':' . $value;
         }
 
         if (empty($segments)) {
@@ -378,7 +410,7 @@ class UrlBuilder
     }
 
     /**
-     * Reset the builder to its initial state (preserves mode and credentials).
+     * Reset the builder to its initial state (preserves mode, pro flag, and credentials).
      */
     public function reset(): self
     {

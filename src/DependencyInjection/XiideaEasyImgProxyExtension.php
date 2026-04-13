@@ -22,6 +22,7 @@ class XiideaEasyImgProxyExtension extends Extension
         $container->setParameter('xiidea_easy_img_proxy.salt', $config['salt']);
         $container->setParameter('xiidea_easy_img_proxy.base_url', $config['base_url']);
         $container->setParameter('xiidea_easy_img_proxy.presets_only', $config['presets_only']);
+        $container->setParameter('xiidea_easy_img_proxy.enable_pro', $config['enable_pro']);
 
         $loader = new PhpFileLoader($container, new FileLocator(__DIR__ . '/../Resources/config'));
         $loader->load('services.php');

@@ -19,5 +19,6 @@ return static function (ContainerConfigurator $configurator): void {
             param('xiidea_easy_img_proxy.base_url'),
             service(PresetRegistry::class)->nullOnInvalid(),
             param('xiidea_easy_img_proxy.presets_only'),
+            param('xiidea_easy_img_proxy.enable_pro'),
         ]);
 };

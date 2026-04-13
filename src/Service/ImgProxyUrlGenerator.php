@@ -15,6 +15,7 @@ class ImgProxyUrlGenerator
         private string $baseUrl,
         private ?PresetRegistry $presetRegistry = null,
         private bool $presetsOnly = false,
+        private bool $enablePro = false,
     ) {
     }
 
@@ -29,6 +30,7 @@ class ImgProxyUrlGenerator
             $this->baseUrl,
             $this->presetRegistry,
             $this->presetsOnly,
+            $this->enablePro,
         );
     }
 
