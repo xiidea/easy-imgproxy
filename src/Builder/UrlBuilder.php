@@ -17,12 +17,6 @@ class UrlBuilder
 
     private ?string $imageUrl = null;
 
-    private string $key;
-
-    private string $salt;
-
-    private string $baseUrl;
-
     private ?PresetRegistry $presetRegistry = null;
 
     /** @var array<string, mixed> */
@@ -36,15 +30,12 @@ class UrlBuilder
     private bool $presetsOnly;
 
     public function __construct(
-        string $key,
-        string $salt,
-        string $baseUrl,
+        private readonly string $key,
+        private readonly string $salt,
+        private readonly string $baseUrl,
         ?PresetRegistry $presetRegistry = null,
         bool $presetsOnly = false,
     ) {
-        $this->key = $key;
-        $this->salt = $salt;
-        $this->baseUrl = $baseUrl;
         $this->presetRegistry = $presetRegistry;
         $this->presetsOnly = $presetsOnly;
     }
@@ -60,7 +51,8 @@ class UrlBuilder
     }
 
     /**
-     * Set the output image extension/format.
+     * Set the output image extension/format (e.g., webp, png, jpg).
+     * Appended as .{ext} suffix on the encoded image URL.
      */
     public function withExtension(string $extension): self
     {
@@ -111,6 +103,7 @@ class UrlBuilder
 
     /**
      * Add a custom processing option.
+     * Rendered as key:value in the URL path.
      */
     public function withOption(string $key, mixed $value): self
     {
@@ -120,7 +113,7 @@ class UrlBuilder
     }
 
     /**
-     * Apply a preset by name.
+     * Apply a preset by name from the registry.
      *
      * @throws InvalidUrlBuilderException
      */
@@ -148,7 +141,6 @@ class UrlBuilder
      */
     public function applyPreset(Preset $preset): self
     {
-        // Store preset options separately so explicit options can override them
         $this->presetOptions = array_merge($this->presetOptions, $preset->getOptions());
 
         if ($preset->getExtension() !== null) {
@@ -176,7 +168,6 @@ class UrlBuilder
 
     /**
      * Apply a server preset from imgproxy.
-     * Server presets can optionally include parameters (e.g., 'blurry:thumb', 'quality:high').
      */
     public function withServerPreset(string $presetName): self
     {
@@ -190,7 +181,7 @@ class UrlBuilder
     /**
      * Apply multiple server presets.
      *
-     * @param array<string> $presetNames Server preset names (can include parameters like 'blurry:thumb')
+     * @param array<string> $presetNames
      */
     public function withServerPresets(array $presetNames): self
     {
@@ -205,8 +196,7 @@ class UrlBuilder
      * Enable or disable presets-only mode.
      *
      * When enabled, matches IMGPROXY_ONLY_PRESETS=true on the server.
-     * Only server presets are used and the URL format becomes:
-     * /{signature}/{preset1}:{preset2}/{encoded_image_url}
+     * URL format becomes: /{signature}/{preset1:preset2}/{encoded_url}.{ext}
      */
     public function usePresetsOnly(bool $presetsOnly = true): self
     {
@@ -216,7 +206,7 @@ class UrlBuilder
     }
 
     /**
-     * Build and return the complete imgproxy URL.
+     * Build and return the complete signed imgproxy URL.
      *
      * @throws InvalidUrlBuilderException
      */
@@ -225,11 +215,46 @@ class UrlBuilder
         $this->validate();
 
         $optionsPath = $this->buildPath();
-        $encodedImageUrl = rawurlencode($this->imageUrl);
-        $path = $optionsPath . '/' . $encodedImageUrl;
+
+        // Encode source URL as URL-safe Base64 (no padding)
+        $encodedUrl = rtrim(strtr(base64_encode($this->imageUrl), '+/', '-_'), '=');
+
+        // Extension is appended as .ext suffix
+        $extension = $this->resolveExtension();
+        $extensionSuffix = $extension !== null ? '.' . $extension : '';
+
+        $path = $optionsPath . '/' . $encodedUrl . $extensionSuffix;
         $signature = $this->sign($path);
 
         return rtrim($this->baseUrl, '/') . '/' . $signature . $path;
+    }
+
+    /**
+     * Resolve the final extension.
+     *
+     * Priority: explicit withExtension() > preset extension > image URL path extension.
+     */
+    private function resolveExtension(): ?string
+    {
+        return $this->extension
+            ?? $this->presetExtension
+            ?? $this->extractExtensionFromUrl();
+    }
+
+    /**
+     * Extract file extension from the image URL path.
+     */
+    private function extractExtensionFromUrl(): ?string
+    {
+        $path = parse_url($this->imageUrl, PHP_URL_PATH);
+
+        if ($path === null || $path === false) {
+            return null;
+        }
+
+        $extension = pathinfo($path, PATHINFO_EXTENSION);
+
+        return $extension !== '' ? $extension : null;
     }
 
     /**
@@ -245,42 +270,36 @@ class UrlBuilder
     }
 
     /**
-     * Build path in standard mode: /preset/name/key/value/format/ext
+     * Build path in standard mode.
+     *
+     * Server presets: /preset:name1:name2
+     * Options: /key:value
      */
     private function buildStandardPath(): string
     {
-        $pathParts = [];
+        $segments = [];
 
-        // Add server presets first (they appear as /preset/name/ in the path)
-        foreach ($this->serverPresets as $presetName) {
-            $pathParts[] = 'preset';
-            $pathParts[] = $presetName;
+        // Server presets as a single "preset:name1:name2" segment
+        if (!empty($this->serverPresets)) {
+            $segments[] = 'preset:' . implode(':', $this->serverPresets);
         }
 
-        // Merge preset options with explicit options (explicit options override presets)
+        // Merge preset options with explicit options (explicit override preset)
         $allOptions = array_merge($this->presetOptions, $this->processingOptions);
 
         foreach ($allOptions as $key => $value) {
-            $pathParts[] = $key;
-            $pathParts[] = (string) $value;
+            $segments[] = $key . ':' . $value;
         }
 
-        // Explicit extension takes precedence over preset extension
-        $finalExtension = $this->extension ?? $this->presetExtension;
-        if ($finalExtension !== null) {
-            $pathParts[] = 'format';
-            $pathParts[] = $finalExtension;
-        }
-
-        if (empty($pathParts)) {
+        if (empty($segments)) {
             return '';
         }
 
-        return '/' . implode('/', $pathParts);
+        return '/' . implode('/', $segments);
     }
 
     /**
-     * Build path in presets-only mode: /preset1:preset2:preset3
+     * Build path in presets-only mode: /preset1:preset2
      */
     private function buildPresetsOnlyPath(): string
     {
@@ -292,7 +311,10 @@ class UrlBuilder
     }
 
     /**
-     * Generate HMAC-SHA256 signature.
+     * Generate HMAC-SHA256 signature per imgproxy spec.
+     *
+     * Signs: HMAC-SHA256(key, salt + path)
+     * Output: URL-safe Base64 without padding.
      */
     private function sign(string $path): string
     {
@@ -303,11 +325,10 @@ class UrlBuilder
             throw new InvalidUrlBuilderException('Invalid hex-encoded key or salt.');
         }
 
-        $signature = hash_hmac('sha256', $path, $key, true);
-        $signatureWithSalt = $salt . $signature;
+        // Salt is prepended to the path as HMAC input data
+        $signature = hash_hmac('sha256', $salt . $path, $key, true);
 
-        // URL-safe Base64 encoding without padding
-        return rtrim(strtr(base64_encode($signatureWithSalt), '+/', '-_'), '=');
+        return rtrim(strtr(base64_encode($signature), '+/', '-_'), '=');
     }
 
     /**
@@ -349,12 +370,6 @@ class UrlBuilder
             );
         }
 
-        if ($this->extension !== null) {
-            throw new InvalidUrlBuilderException(
-                'Extension is not allowed in presets-only mode. Configure the format in your server preset.'
-            );
-        }
-
         if (!empty($this->presetOptions) || $this->presetExtension !== null) {
             throw new InvalidUrlBuilderException(
                 'Custom presets with options are not allowed in presets-only mode. Use server presets instead.'
@@ -363,7 +378,7 @@ class UrlBuilder
     }
 
     /**
-     * Reset the builder to its initial state.
+     * Reset the builder to its initial state (preserves mode and credentials).
      */
     public function reset(): self
     {
